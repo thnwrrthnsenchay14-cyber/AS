@@ -1,0 +1,64 @@
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local isLocked = false
+local currentTarget = nil
+local maxDistance = 50 -- ระยะทำการสูงสุดในการล็อกเป้า (เมตร)
+
+-- ฟังก์ชันหาศัตรูที่อยู่ใกล้ที่สุด
+local function getClosestTarget()
+	local character = localPlayer.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+	
+	local closestEnemy = nil
+	local shortestDistance = maxDistance
+	
+	for _, obj in pairs(Workspace:GetChildren()) do
+		-- ตรวจสอบว่าเป็น Character ของผู้เล่นคนอื่นหรือ NPC และยังมีชีวิตอยู่
+		if obj:IsA("Model") and obj ~= character and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+			local targetPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
+			if targetPart then
+				local distance = (character.HumanoidRootPart.Position - targetPart.Position).Magnitude
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closestEnemy = targetPart
+				end
+			end
+		end
+	end
+	
+	return closestEnemy
+end
+
+-- ระบบกดปุ่ม (Keybind) เพื่อเปิด/ปิด การล็อกเป้า
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end -- ป้องกันทำงานขณะพิมพ์แชต
+	
+	if input.KeyCode == Enum.KeyCode.F then
+		isLocked = not isLocked
+		
+		if isLocked then
+			currentTarget = getClosestTarget()
+			if not currentTarget then
+				isLocked = false -- ถ้าไม่พบเป้าหมาย ให้ยกเลิกการล็อก
+			end
+		else
+			currentTarget = nil
+		end
+	end
+end)
+
+-- อัปเดตมุมกล้องให้หันไปทางเป้าหมายทุกเฟรม
+game:GetService("RunService").RenderStepped:Connect(function()
+	if isLocked and currentTarget and currentTarget.Parent and currentTarget.Parent:FindFirstChild("Humanoid") and currentTarget.Parent.Humanoid.Health > 0 then
+		-- บังคับให้กล้องหันไปมองเป้าหมาย
+		camera.CFrame = CFrame.new(camera.CFrame.Position, currentTarget.Position)
+	else
+		isLocked = false
+		currentTarget = nil
+	end
+end)
